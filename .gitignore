@@ -1,0 +1,48 @@
+# Ignore dataset files
+dataset/
+datasets/
+*.csv
+*.tsv
+*.json
+*.jsonl
+*.parquet
+*.h5
+*.hdf5
+
+# Ignore output files
+outputs/
+results/
+output/
+result/
+
+# Ignore weight and log files
+*.pth
+*.pt
+*.bin
+*.onnx
+*.ckpt
+*.h5
+*.hdf5
+*.log
+logs/
+checkpoints/
+weights/
+
+# Ignore cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+.cache/
+*.cache
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
