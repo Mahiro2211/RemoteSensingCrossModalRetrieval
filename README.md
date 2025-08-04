@@ -1,3 +1,12 @@
+This repo aims to provide a common baseline for remote sensing cross-modal retrieval. The split of the dataset follows Harma(see citation below), thanks to the author!
+
+## TODO-List
+* add more Parameter-Efficient Method
+* add wandb support
+* add more visualization
+
+<hr>
+
 | Methods                | Backbone (image/text)       | Trainable Params | Image-to-text |        |         | Text-to-image |        |         |      mR      |
 |------------------------|-----------------------------|------------------|---------------|--------|---------|---------------|--------|---------|--------------|
 |                        |                             |                  | R@1           | R@5    | R@10    | R@1           | R@5    | R@10    |              |
