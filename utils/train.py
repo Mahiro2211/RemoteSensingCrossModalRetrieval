@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import torch.nn.functional as F
 from loguru import logger
 from open_clip.tokenizer import tokenize
 from tqdm import tqdm
@@ -14,41 +13,50 @@ best_i2t_r10 = 0
 best_mr = 0
 
 
-def train_one_epoch(model, train_loader, optimizer, criterion, epoch, device):
+def train_one_epoch(model, train_loader, optimizer, criterion, epoch, device, **kwargs):
     model.train()
+    adapter = kwargs.get("adapter", None)
+    tot_loss = 0.0
 
-    tot_loss = 0.
-    
-    for i, (image, text, idx, label) in tqdm(enumerate(train_loader), total=len(train_loader)):
+    for i, (image, text, idx, label, label_name) in tqdm(
+        enumerate(train_loader), total=len(train_loader)
+    ):
         image = image.to(device, non_blocking=True)
         idx = idx.to(device, non_blocking=True)
         label = label.to(device, non_blocking=True)
-        ## fix length of token
+
         text_input = tokenize(text).to(device)
-        
+
         img_emb = model.encode_image(image)
         txt_emb = model.encode_text(text_input)
-
-        img_emb = F.normalize(img_emb)
-        txt_emb = F.normalize(txt_emb)
+        if adapter is not None:
+            x = adapter(img_emb)
+            ratio = 0.2
+            img_emb = ratio * x + (1 - ratio) * img_emb
+        ## Normalize original using F.normalize now turn to this
+        img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+        txt_emb = txt_emb / txt_emb.norm(dim=-1, keepdim=True)
 
         # Only use the CLIP contrastive loss - this is the standard approach
         loss = criterion(img_emb, txt_emb, model.logit_scale.exp())
-        
+
         optimizer.zero_grad()
         loss.backward()
-        
+
         # Add gradient clipping
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        
+
         optimizer.step()
-        
+
         tot_loss += loss.item()
-    
-    logger.info("Epoch {} - Average Loss: {:.4f}".format(epoch, tot_loss / len(train_loader)))
+
+    logger.info(
+        "Epoch {} - Average Loss: {:.4f}".format(epoch, tot_loss / len(train_loader))
+    )
+
 
 @torch.no_grad()
-def evaluate(model, data_loader, device, args):
+def evaluate(model, data_loader, device, args, **kwargs):
     logger.info("Running evaluation...")
     model.eval()
 
@@ -62,28 +70,36 @@ def evaluate(model, data_loader, device, args):
     logger.info("Encoding images...")
     for i, (image, img_id) in enumerate(tqdm(data_loader)):
         image = image.to(device)
-        
+
         image_embed = model.encode_image(image)
-        image_embed = F.normalize(image_embed)
+        adapter = kwargs.get("adapter", None)
+        if adapter is not None:
+            x = adapter(image_embed)
+            ratio = 0.2
+            image_embed = ratio * x + (1 - ratio) * image_embed
+
+        # image_embed = F.normalize(image_embed)
+        image_embed = image_embed / image_embed.norm(dim=-1, keepdim=True)
         image_embeds.append(image_embed)
-    
+
     # Inference text features
     logger.info("Encoding texts...")
     for i in tqdm(range(0, num_text, text_bs)):
-        text = texts[i: min(num_text, i + text_bs)]
+        text = texts[i : min(num_text, i + text_bs)]
         text_input = tokenize(text).to(device)
 
         text_embed = model.encode_text(text_input)
-        text_embed = F.normalize(text_embed)
+        # text_embed = F.normalize(text_embed)
+        text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
 
         text_embeds.append(text_embed)
-    
+
     # calculate similarity matrix
     image_embeds = torch.cat(image_embeds, dim=0)
     text_embeds = torch.cat(text_embeds, dim=0)
     logger.info(f"Image embeddings shape: {image_embeds.shape}")
     logger.info(f"Text embeddings shape: {text_embeds.shape}")
-    
+
     sims_matrix = image_embeds @ text_embeds.t()
 
     score_matrix_i2t = sims_matrix
@@ -127,14 +143,16 @@ def itm_eval(scores_i2t, scores_t2i, txt2img, img2txt):
     ir_mean = (ir1 + ir5 + ir10) / 3
     r_mean = (tr_mean + ir_mean) / 2
 
-    eval_result = {'txt_r1': round(tr1,2),
-                   'txt_r5': round(tr5,2),
-                   'txt_r10': round(tr10,2),
-                   'img_r1': round(ir1,2),
-                   'img_r5': round(ir5,2),
-                   'img_r10': round(ir10,2),
-                   'r_mean': round(r_mean,2)}
-    
+    eval_result = {
+        "txt_r1": round(tr1, 2),
+        "txt_r5": round(tr5, 2),
+        "txt_r10": round(tr10, 2),
+        "img_r1": round(ir1, 2),
+        "img_r5": round(ir5, 2),
+        "img_r10": round(ir10, 2),
+        "r_mean": round(r_mean, 2),
+    }
+
     global best_i2t_r1
     global best_i2t_r5
     global best_i2t_r10
@@ -142,28 +160,39 @@ def itm_eval(scores_i2t, scores_t2i, txt2img, img2txt):
     global best_t2i_r5
     global best_t2i_r10
     global best_mr
-    
-    if eval_result['img_r1'] > best_t2i_r1:
-        best_t2i_r1 = eval_result['img_r1']
-    if eval_result['img_r5'] > best_t2i_r5:
-        best_t2i_r5 = eval_result['img_r5']
-    if eval_result['img_r10'] > best_t2i_r10:
-        best_t2i_r10 = eval_result['img_r10']
 
-    if eval_result['txt_r1'] > best_i2t_r1:
-        best_i2t_r1 = eval_result['txt_r1']
-    if eval_result['txt_r5'] > best_i2t_r5:
-        best_i2t_r5 = eval_result['txt_r5']
-    if eval_result['txt_r10'] > best_i2t_r10:
-        best_i2t_r10 = eval_result['txt_r10']
+    if eval_result["img_r1"] > best_t2i_r1:
+        best_t2i_r1 = eval_result["img_r1"]
+    if eval_result["img_r5"] > best_t2i_r5:
+        best_t2i_r5 = eval_result["img_r5"]
+    if eval_result["img_r10"] > best_t2i_r10:
+        best_t2i_r10 = eval_result["img_r10"]
 
-    best_mr = (best_i2t_r1 + best_t2i_r1 + best_i2t_r5 + best_t2i_r5 + best_i2t_r10 + best_t2i_r10) / 6
+    if eval_result["txt_r1"] > best_i2t_r1:
+        best_i2t_r1 = eval_result["txt_r1"]
+    if eval_result["txt_r5"] > best_i2t_r5:
+        best_i2t_r5 = eval_result["txt_r5"]
+    if eval_result["txt_r10"] > best_i2t_r10:
+        best_i2t_r10 = eval_result["txt_r10"]
+
+    best_mr = (
+        best_i2t_r1
+        + best_t2i_r1
+        + best_i2t_r5
+        + best_t2i_r5
+        + best_i2t_r10
+        + best_t2i_r10
+    ) / 6
 
     logger.info(">" * 20)
     logger.info(">" * 20)
-    logger.info(f'best_i2t_r1: {best_i2t_r1:.2f}, best_i2t_r5: {best_i2t_r5:.2f}, best_i2t_r10: {best_i2t_r10:.2f}')
-    logger.info(f'best_t2i_r1: {best_t2i_r1:.2f}, best_t2i_r5: {best_t2i_r5:.2f}, best_t2i_r10: {best_t2i_r10:.2f}')
-    logger.info(f'BEST_MR: {best_mr:.2f}')
+    logger.info(
+        f"best_i2t_r1: {best_i2t_r1:.2f}, best_i2t_r5: {best_i2t_r5:.2f}, best_i2t_r10: {best_i2t_r10:.2f}"
+    )
+    logger.info(
+        f"best_t2i_r1: {best_t2i_r1:.2f}, best_t2i_r5: {best_t2i_r5:.2f}, best_t2i_r10: {best_t2i_r10:.2f}"
+    )
+    logger.info(f"BEST_MR: {best_mr:.2f}")
     logger.info(">" * 20)
     logger.info(">" * 20)
 

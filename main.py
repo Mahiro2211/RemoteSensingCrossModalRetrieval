@@ -6,12 +6,86 @@ import numpy as np
 import open_clip
 import open_clip.loss
 import torch
+import torch.backends.cudnn as cudnn
 from loguru import logger
 from torch.utils.data import DataLoader
 
 from data.re_dataset import re_eval_dataset, re_train_dataset
-from utils.optimizers import creat_optimizer, create_scheduler
+from models.clip_adpter import Adapter
+from utils.optimizers import (
+    count_trainable_params,
+    creat_optimizer,
+    create_scheduler,
+    freeze_model,
+)
 from utils.train import evaluate, itm_eval, train_one_epoch
+
+parser = argparse.ArgumentParser()
+# TASK
+parser.add_argument(
+    "--task",
+    type=str,
+    choices=["GeoRSCLIP_FT", "CLIP_FT", "CLIP_Adapter"],
+    default="GeoRSCLIP_FT",
+)
+parser.add_argument(
+    "--dataset",
+    type=str,
+    default="rsitmd",
+)
+parser.add_argument(
+    "--model-name",
+    type=str,
+    default="ViT-B-32",
+    choices=["RN50", "ViT-B-32", "ViT-L-14"],
+    help="Name of backbone. In open_clip.list_models() or hugging face transformers",
+)
+
+### LR——SCHREDULE
+parser.add_argument(
+    "--lr_scheduler",
+    type=str,
+    default="cosine",
+    choices=["cosine", "step", "plateau"],
+)
+parser.add_argument("--lr_decay_rate", type=float, default=0.5)
+parser.add_argument("--lr_decay_epochs", type=int, default=5)
+
+### Optimizer parameters
+parser.add_argument("--lr", default=4e-6, type=float, help="learning rate")
+
+parser.add_argument("--epochs", default=20, type=int, help="epochs")
+parser.add_argument("--device", type=str, default="cuda:0")
+parser.add_argument("--bs", default=128, type=int)
+parser.add_argument("--test_bs", default=256, type=int)
+parser.add_argument(
+    "--embed_dim", default=512, type=int, help="embedding dim for image and text"
+)
+# FLOW ABOUT 0.6% Recall improvement
+parser.add_argument("--seed", default=42, type=int)
+
+## IF USE OPEAI PRETRAINED MODEL SET CHECKPOINT TO -1
+# parser.add_argument('--checkpoint', default='-1', type=str, help="for fine-tuning")
+parser.add_argument(
+    "--checkpoint",
+    default="./pretrained_dir/RS5M_ViT-B-32_RET-2.pt",
+    type=str,
+    help="for fine-tuning",
+)
+parser.add_argument(
+    "--output_dir",
+    type=str,
+    default="./outputs/ft_clip",
+    help="for fine-tuning, local path; "
+    "for pre-training, local and HDFS are both allowed.",
+)
+parser.add_argument(
+    "--evaluate",
+    action="store_true",
+    default=False,
+    help="evaluation on downstream tasks",
+)
+parser.add_argument("--save_freq", type=int, default=20, help="save frequency")
 
 
 def run(args):
@@ -19,20 +93,32 @@ def run(args):
     CLIP_model, preprocess_train, preprocess_val = (
         open_clip.create_model_and_transforms(
             model_name=args.model_name,
-            pretrained=args.pretrained,
+            pretrained="openai",
             device=args.device,
             cache_dir="cache/weights/open_clip",
         )
     )
 
-    ##### LOAD CHECKPOINT ######
-    if args.checkpoint != "-1":
+    adapter = None
+    if args.task == "CLIP_Adapter":
+        ##### BUILD ADAPTER #####
+        logger.info("Building Adapter")
+        adapter = Adapter(args.embed_dim, 2).to(args.device)
+        logger.info("FREEZING CLIP MODEL")
+        freeze_model(CLIP_model)
+        logger.info(f"Trainable params: {count_trainable_params(CLIP_model)}")
+    elif args.task == "GeoRSCLIP_FT":
+        ##### LOAD CHECKPOINT ######
         checkpoint = torch.load(args.checkpoint, map_location="cuda")
         CLIP_model.load_state_dict(checkpoint)
         logger.info(f"Loaded from {args.checkpoint}")
+    elif args.task == "CLIP_FT":
+        pass
+    else:
+        raise NotImplementedError
 
     criterion = open_clip.loss.ClipLoss()
-    optimizer = creat_optimizer(CLIP_model, args)
+    optimizer = creat_optimizer(CLIP_model, args, adapter=adapter)
     scheduler = create_scheduler(optimizer, args)
 
     ##### LOAD DATASET ######
@@ -66,13 +152,19 @@ def run(args):
         logger.info(f"Training Epoch: {epoch}")
 
         train_one_epoch(
-            CLIP_model, train_loader, optimizer, criterion, epoch, args.device
+            CLIP_model,
+            train_loader,
+            optimizer,
+            criterion,
+            epoch,
+            args.device,
+            adapter=adapter,
         )
 
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
             # For ReduceLROnPlateau, we need to provide a metric to base the decision on
             score_test_i2t, score_test_t2i = evaluate(
-                CLIP_model, test_loader, args.device, args
+                CLIP_model, test_loader, args.device, args, adapter=adapter
             )
             test_result = itm_eval(
                 score_test_i2t,
@@ -121,75 +213,13 @@ def run(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=str, default="GeoRSCLIP_FT")
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="rsitmd",
-    )
-    parser.add_argument(
-        "--pretrained", choices=["openai", "geoclip", "-1"], default="openai"
-    )
-    parser.add_argument(
-        "--model-name",
-        type=str,
-        default="ViT-B-32",
-        choices=["RN50", "ViT-B-32", "ViT-L-14"],
-        help="Name of backbone. In open_clip.list_models() or hugging face transformers",
-    )
-
-    ### LR——SCHREDULE
-    parser.add_argument(
-        "--lr_scheduler",
-        type=str,
-        default="cosine",
-        choices=["cosine", "step", "plateau"],
-    )
-    parser.add_argument("--lr_decay_rate", type=float, default=0.5)
-    parser.add_argument("--lr_decay_epochs", type=int, default=5)
-
-    ### Optimizer parameters
-    parser.add_argument("--lr", default=4e-6, type=float, help="learning rate")
-
-    parser.add_argument("--epochs", default=20, type=int, help="epochs")
-    parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--bs", default=128, type=int)
-    parser.add_argument("--test_bs", default=256, type=int)
-
-    # FLOW ABOUT 0.6% Recall improvement
-    parser.add_argument("--seed", default=42, type=int)
-
-    ## IF USE OPEAI PRETRAINED MODEL SET CHECKPOINT TO -1
-    # parser.add_argument('--checkpoint', default='-1', type=str, help="for fine-tuning")
-    parser.add_argument(
-        "--checkpoint",
-        default="./pretrained_dir/RS5M_ViT-B-32_RET-2.pt",
-        type=str,
-        help="for fine-tuning",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="./outputs/ft_clip",
-        help="for fine-tuning, local path; "
-        "for pre-training, local and HDFS are both allowed.",
-    )
-    parser.add_argument(
-        "--evaluate",
-        action="store_true",
-        default=False,
-        help="evaluation on downstream tasks",
-    )
-    parser.add_argument("--save_freq", type=int, default=25, help="save frequency")
-
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
     log_path = os.path.join(
         args.output_dir, f"{args.task}_lr{args.lr}_bs{args.bs}_training.log"
     )
-    
+
     # Open file in write mode to clear content
     with open(log_path, "w") as f:
         pass
@@ -204,6 +234,7 @@ if __name__ == "__main__":
     random.seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    cudnn.benchmark = True
 
     logger.warning(args)
     run(args)

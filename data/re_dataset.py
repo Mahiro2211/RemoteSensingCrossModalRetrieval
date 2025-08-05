@@ -31,6 +31,7 @@ class re_train_dataset(Dataset):
 
         ann = self.ann[index]
 
+
         image_path = os.path.join(self.image_root, ann['image'])
         image = Image.open(image_path).convert('RGB')
         image = self.transform(image)
@@ -59,7 +60,7 @@ class re_train_dataset(Dataset):
         ## if no need label, set value to zero or others:
         # label = 0
         # return image, caption, mask_text, self.img_ids[ann['image_id']], label
-        return image, caption, self.img_ids[ann['image_id']], label
+        return image, caption, self.img_ids[ann['image_id']], label, ann['label_name']
 
 
 class re_eval_dataset(Dataset):
