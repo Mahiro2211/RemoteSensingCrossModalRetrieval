@@ -104,7 +104,6 @@ if __name__ == "__main__":
     parser.add_argument('--seed', default=42, type=int)
     # parser.add_argument('--checkpoint', default='-1', type=str, help="for fine-tuning")
     parser.add_argument('--checkpoint', default='./pretrained_dir/RS5M_ViT-B-32_RET-2.pt', type=str, help="for fine-tuning")
-    parser.add_argument('--load_ckpt_from', default=' ', type=str, help="load domain pre-trained params")
     parser.add_argument('--output_dir', type=str, default='./outputs/ft_clip', help='for fine-tuning, local path; '
                                                                       'for pre-training, local and HDFS are both allowed.')
     parser.add_argument('--evaluate', action='store_true', default=False, help="evaluation on downstream tasks")
