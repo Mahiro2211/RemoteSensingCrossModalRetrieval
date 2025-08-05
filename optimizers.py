@@ -1,9 +1,18 @@
 import torch.optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR, ReduceLROnPlateau
 
-def creat_optimizer(model, args):
+def creat_optimizer(model, args, freeze_before=None):
+
+    params = list()
+
+    if freeze_before is not None:
+        pass
+    else:
+        params = model.parameters()
     return torch.optim.AdamW(model.parameters(), lr=args.lr)
 
+def count_trainable_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def create_scheduler(optimizer, args):
     if args.lr_scheduler == 'cosine':
