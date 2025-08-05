@@ -1,13 +1,15 @@
 This repo aims to provide a common baseline for remote sensing cross-modal retrieval. The split of the dataset follows Harma(see citation below), thanks to the author!
 
+## Setup
+```shell
+conda create -n rsbs python=3.10
+pip install -r requirements.txt
+```
+
 ## TODO-List
 * add more Parameter-Efficient Method
 * add wandb support
 * add more visualization
-
-## Introduction
-
-
 
 <hr>
 

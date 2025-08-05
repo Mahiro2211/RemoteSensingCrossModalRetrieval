@@ -1,9 +1,8 @@
-import torch
 import numpy as np
-
-from open_clip.tokenizer import tokenize
+import torch
 import torch.nn.functional as F
 from loguru import logger
+from open_clip.tokenizer import tokenize
 from tqdm import tqdm
 
 best_t2i_r1 = 0
@@ -145,21 +144,27 @@ def itm_eval(scores_i2t, scores_t2i, txt2img, img2txt):
     global best_mr
     
     if eval_result['img_r1'] > best_t2i_r1:
-        best_i2t_r1 = eval_result['img_r1']
+        best_t2i_r1 = eval_result['img_r1']
     if eval_result['img_r5'] > best_t2i_r5:
-        best_i2t_r5 = eval_result['img_r5']
+        best_t2i_r5 = eval_result['img_r5']
     if eval_result['img_r10'] > best_t2i_r10:
-        best_i2t_r10 = eval_result['img_r10']
+        best_t2i_r10 = eval_result['img_r10']
 
     if eval_result['txt_r1'] > best_i2t_r1:
-        best_t2i_r1 = eval_result['txt_r1']
+        best_i2t_r1 = eval_result['txt_r1']
     if eval_result['txt_r5'] > best_i2t_r5:
-        best_t2i_r5 = eval_result['txt_r5']
+        best_i2t_r5 = eval_result['txt_r5']
     if eval_result['txt_r10'] > best_i2t_r10:
-        best_t2i_r10 = eval_result['txt_r10']
+        best_i2t_r10 = eval_result['txt_r10']
 
     best_mr = (best_i2t_r1 + best_t2i_r1 + best_i2t_r5 + best_t2i_r5 + best_i2t_r10 + best_t2i_r10) / 6
-    logger.info(f'best_i2t_r1: {best_i2t_r1}, best_i2t_r5: {best_i2t_r5}, best_i2t_r10: {best_i2t_r10}')
-    logger.info(f'best_t2i_r1: {best_t2i_r1}, best_t2i_r5: {best_t2i_r5}, best_t2i_r10: {best_t2i_r10}')
-    logger.info(f'best_mr: {best_mr}')
+
+    logger.info(">" * 20)
+    logger.info(">" * 20)
+    logger.info(f'best_i2t_r1: {best_i2t_r1:.2f}, best_i2t_r5: {best_i2t_r5:.2f}, best_i2t_r10: {best_i2t_r10:.2f}')
+    logger.info(f'best_t2i_r1: {best_t2i_r1:.2f}, best_t2i_r5: {best_t2i_r5:.2f}, best_t2i_r10: {best_t2i_r10:.2f}')
+    logger.info(f'BEST_MR: {best_mr:.2f}')
+    logger.info(">" * 20)
+    logger.info(">" * 20)
+
     return eval_result
