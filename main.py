@@ -25,8 +25,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--task",
     type=str,
-    choices=["GeoRSCLIP_FT", "CLIP_FT", "CLIP_Adapter"],
-    default="GeoRSCLIP_FT",
+    choices=["GeoRSCLIP_FT", "CLIP_FT", "CLIP_Adapter", "GeoRSCLIP_Adapter"],
+    default="GeoRSCLIP_Adapter",
 )
 parser.add_argument(
     "--dataset",
@@ -52,9 +52,9 @@ parser.add_argument("--lr_decay_rate", type=float, default=0.5)
 parser.add_argument("--lr_decay_epochs", type=int, default=5)
 
 ### Optimizer parameters
-parser.add_argument("--lr", default=4e-6, type=float, help="learning rate")
+parser.add_argument("--lr", default=1e-5, type=float, help="learning rate")
 
-parser.add_argument("--epochs", default=20, type=int, help="epochs")
+parser.add_argument("--epochs", default=50, type=int, help="epochs")
 parser.add_argument("--device", type=str, default="cuda:0")
 parser.add_argument("--bs", default=128, type=int)
 parser.add_argument("--test_bs", default=256, type=int)
@@ -100,22 +100,18 @@ def run(args):
     )
 
     adapter = None
-    if args.task == "CLIP_Adapter":
+    if args.task == "GeoRSCLIP_FT" or "GeoRSCLIP_Adapter":
+        ##### LOAD CHECKPOINT ######
+        checkpoint = torch.load(args.checkpoint, map_location="cuda")
+        CLIP_model.load_state_dict(checkpoint)
+        logger.info(f"Loaded from {args.checkpoint}")
+    if args.task == "CLIP_Adapter" or "GeoRSCLIP_Adapter":
         ##### BUILD ADAPTER #####
         logger.info("Building Adapter")
         adapter = Adapter(args.embed_dim, 2).to(args.device)
         logger.info("FREEZING CLIP MODEL")
         freeze_model(CLIP_model)
         logger.info(f"Trainable params: {count_trainable_params(CLIP_model)}")
-    elif args.task == "GeoRSCLIP_FT":
-        ##### LOAD CHECKPOINT ######
-        checkpoint = torch.load(args.checkpoint, map_location="cuda")
-        CLIP_model.load_state_dict(checkpoint)
-        logger.info(f"Loaded from {args.checkpoint}")
-    elif args.task == "CLIP_FT":
-        pass
-    else:
-        raise NotImplementedError
 
     criterion = open_clip.loss.ClipLoss()
     optimizer = creat_optimizer(CLIP_model, args, adapter=adapter)
@@ -182,7 +178,7 @@ def run(args):
         logger.info(f"Current learning rate: {current_lr}")
 
         score_test_i2t, score_test_t2i = evaluate(
-            CLIP_model, test_loader, args.device, args
+            CLIP_model, test_loader, args.device, args, adapter=adapter
         )
         test_result = itm_eval(
             score_test_i2t,

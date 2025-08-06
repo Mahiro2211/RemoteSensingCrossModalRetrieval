@@ -30,6 +30,7 @@ def train_one_epoch(model, train_loader, optimizer, criterion, epoch, device, **
         img_emb = model.encode_image(image)
         txt_emb = model.encode_text(text_input)
         if adapter is not None:
+            adapter.train()
             x = adapter(img_emb)
             ratio = 0.2
             img_emb = ratio * x + (1 - ratio) * img_emb
@@ -74,6 +75,7 @@ def evaluate(model, data_loader, device, args, **kwargs):
         image_embed = model.encode_image(image)
         adapter = kwargs.get("adapter", None)
         if adapter is not None:
+            adapter.eval()
             x = adapter(image_embed)
             ratio = 0.2
             image_embed = ratio * x + (1 - ratio) * image_embed
