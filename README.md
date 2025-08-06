@@ -26,7 +26,7 @@ pip install -r requirements.txt
 
 ### RSITMD
 
-| Methods                | Backbone (image/text)       | Trainable Params | Image-to-text |        |         | Text-to-image |        |         |      mR      |
+| Methods                | Backbone (image/text)       | Trainable Params | I2T |I2T       |I2T        | T2I | T2I       | T2I         |      mR      |
 |------------------------|-----------------------------|------------------|---------------|--------|---------|---------------|--------|---------|--------------|
 |                        |                             |                  | R@1           | R@5    | R@10    | R@1           | R@5    | R@10    |              |
 | **CLIP BaseMethod methods**|                             |                  |               |        |         |               |        |         |              |
