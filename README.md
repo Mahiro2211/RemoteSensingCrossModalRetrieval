@@ -10,7 +10,6 @@ pip install -r requirements.txt
 ## TODO-List
 
 * add more Parameter-Efficient Method
-* all experiment's loss function use CLIPLOSS (implemented in open_clip.loss library)
 * add wandb support
 * add more visualization
 
@@ -18,9 +17,10 @@ pip install -r requirements.txt
 
 ## Details
 
-training 50 epochs per experiment.
-embeding size is 512 by default.
-learning rate is 4e-6 on clip model and 1e-5 on adatper.
+* training 50 epochs per experiment.
+* embeding size is 512 by default.
+* learning rate is 4e-6 on clip model and 1e-5 on adatper.
+* all experiment's loss function use CLIPLOSS (implemented in open_clip.loss library)
 
 ## Results
 
