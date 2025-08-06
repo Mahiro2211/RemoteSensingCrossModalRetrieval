@@ -15,12 +15,16 @@ pip install -r requirements.txt
 * add more visualization
 
 <hr>
+
 ## Details
-training 50 epochs per experiment
+
+training 50 epochs per experiment.
 embeding size is 512 by default.
-learning rate is 4e-6 on clip model and 1e-5 on adatper
+learning rate is 4e-6 on clip model and 1e-5 on adatper.
 
 ## Results
+
+### RSITMD
 
 | Methods                | Backbone (image/text)       | Trainable Params | Image-to-text |        |         | Text-to-image |        |         |      mR      |
 |------------------------|-----------------------------|------------------|---------------|--------|---------|---------------|--------|---------|--------------|
@@ -30,3 +34,15 @@ learning rate is 4e-6 on clip model and 1e-5 on adatper
 | Full-FT GeoRSCLIP      | GeoRSCLIP(ViT-B-32-RET-2)   | 151M             | 24.87         | 60.75  | 77.43   | 29.42         | 54.20  | 65.71   | 52.06 |
 |CLIP Adatpter| CLIP(ViT-B-32)| 0.26M| 10.40|25.88|39.16|9.87|30.88|46.73|27.19|
 |CLIP Adatpter| GeoRSCLIP(ViT-B-32-RET-2) | 0.26M|27.88|51.33|65.71|23.45|55.75|74.56|49.78|
+
+
+# CITATION
+
+```bibtex
+@article{huang2024efficient,
+  title={Efficient Remote Sensing with Harmonized Transfer Learning and Modality Alignment},
+  author={Huang, Tengjun},
+  journal={arXiv preprint arXiv:2404.18253},
+  year={2024}
+}
+```
