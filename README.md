@@ -21,6 +21,7 @@ pip install -r requirements.txt
 * embeding size is 512 by default.
 * learning rate is 4e-6 on clip model and 1e-5 on adatper.
 * all experiment's loss function use CLIPLOSS (implemented in open_clip.loss library)
+* all experiment's is running on RTX 4090D
 
 ## Results
 
